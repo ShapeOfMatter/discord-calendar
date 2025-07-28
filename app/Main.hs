@@ -1,6 +1,6 @@
 module Main where
 
-import           Control.Monad (when, void)
+import           Control.Monad (join, when, void)
 import Data.Default (def)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -31,6 +31,7 @@ import           Discord.Types ( Activity(..)
                                , userIsBot)
 import qualified Discord.Requests as R
 import Options.Applicative ( (<**>)
+                           , (<|>)
                            , auto
                            , help
                            , helper
@@ -51,14 +52,18 @@ import UnliftIO.Concurrent (threadDelay)
 
 data MainArgs = MainArgs{ botToken :: T.Text
                         , guildID :: GuildId
-                        } deriving (Show)
+                        } deriving (Show, Read)
 
-argParser :: Parser MainArgs
+argParser :: Parser (IO MainArgs)
 argParser = do
-    token <- strOption (short 't' <> metavar "TOKEN" <> help "A token for a bot?")
-    guild <- option auto (short 'g' <> metavar "GUILDID" <> help "The guild's ID.")
-    pure $ MainArgs token guild
+              token <- strOption (short 't' <> metavar "TOKEN" <> help "A token for a bot? DISCOURAGED!")
+              guild <- option auto (short 'g' <> metavar "GUILDID" <> help "The guild's ID.")
+              pure $ pure $ MainArgs token guild
 
+fileParser :: Parser (IO MainArgs)
+fileParser = do
+              file <- strOption (short 'f' <> metavar "FILE" <> help "A file from which to read a MainArgs object.")
+              pure $ read @MainArgs <$> readFile file
 
 
 -- Allows this code to be an executable. See discord-haskell.cabal
@@ -68,8 +73,8 @@ main = pingpongExample
 -- | Replies "pong" to every message that starts with "ping"
 pingpongExample :: IO ()
 pingpongExample = do
-  MainArgs{botToken=tok, guildID=testserverid} <- execParser $
-      info (argParser <**> helper) (progDesc $ unlines ["A ping-pong bot."])
+  MainArgs{botToken=tok, guildID=testserverid} <- join . execParser $
+      info (argParser <|> fileParser <**> helper) (progDesc $ unlines ["A ping-pong bot."])
 
   -- open ghci and run  [[ :info RunDiscordOpts ]] to see available fields
   err <- runDiscord $ def { discordToken = tok
