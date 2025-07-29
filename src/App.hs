@@ -1,0 +1,103 @@
+module App where
+
+import Arguments
+import           Control.Monad (when, void)
+import Data.Default (def)
+import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
+import           Discord ( DiscordHandler
+                         , getGatewayLatency
+                         , measureLatency
+                         , restCall
+                         , runDiscord
+                         , RunDiscordOpts(..)
+                         , sendCommand)
+import           Discord.Types ( Activity(..)
+                               , ActivityType(..)
+                               , Event (..)
+                               , GatewayIntent(..)
+                               , GatewaySendable(..)
+                               , GuildId
+                               , messageChannelId
+                               , messageContent
+                               , messageId
+                               , MessageReference(..)
+                               , mkActivity
+                               , UpdateStatusType(..)
+                               , UpdateStatusOpts(..))
+import qualified Discord.Requests as R
+import MyDiscord
+import UnliftIO (liftIO)
+import UnliftIO.Concurrent (threadDelay)
+
+
+-- | Replies "pong" to every message that starts with "ping"
+pingpongExample :: IO ()
+pingpongExample = do
+  MainArgs{botToken=tok, guildID=testserverid} <- getArguments
+
+  -- open ghci and run  [[ :info RunDiscordOpts ]] to see available fields
+  err <- runDiscord $ def { discordToken = tok
+                          , discordOnStart = startHandler testserverid
+                          , discordOnEnd = liftIO $ threadDelay (round @Double (0.4 * 10^(6::Int))) >>  putStrLn "Ended"
+                          , discordOnEvent = eventHandler
+                          , discordOnLog = \s -> TIO.putStrLn s >> TIO.putStrLn ""
+                          , discordGatewayIntent = def {gatewayIntentMembers = True, gatewayIntentPresences =True}
+                          }
+
+  -- only reached on an unrecoverable error
+  -- put normal 'cleanup' code in discordOnEnd
+  TIO.putStrLn err
+
+-- If the start handler throws an exception, discord-haskell will gracefully shutdown
+--     Use place to execute commands you know you want to complete
+startHandler :: GuildId -> DiscordHandler ()
+startHandler testserverid = do
+  liftIO $ putStrLn "Started ping-pong bot"
+
+  let activity = (mkActivity "ping-pong" ActivityTypeStreaming) { activityUrl = Just "https://www.youtube.com/watch?v=dQw4w9WgXcQ", activityState = Just "rolling down a hill" }
+  let opts = UpdateStatusOpts { updateStatusOptsSince = Nothing
+                              , updateStatusOptsActivities = [activity]
+                              , updateStatusOptsNewStatus = UpdateStatusOnline
+                              , updateStatusOptsAFK = False
+                              }
+  sendCommand (UpdateStatus opts)
+
+  actionWithChannelId testserverid $ \cid ->
+    void $
+      restCall $
+        R.CreateMessage
+          cid
+          "Hello! I will reply to pings with pongs"
+
+
+-- If an event handler throws an exception, discord-haskell will continue to run
+eventHandler :: Event -> DiscordHandler ()
+eventHandler event = case event of
+      MessageCreate m -> when (not (fromBot m) && isPing m) $ do
+        void $ restCall (R.CreateReaction (messageChannelId m, messageId m) "eyes")
+        threadDelay (2 * 10 ^ (6 :: Int))
+
+        -- A very simple message.
+        Right m' <- restCall (R.CreateMessage (messageChannelId m) "Pong")
+        void $ restCall (R.EditMessage (messageChannelId m, messageId m') (def {R.messageDetailedContent=messageContent m' <> "!"}))
+
+        latency <- getGatewayLatency
+        mLatency <- measureLatency
+
+        -- A more complex message. Text-to-speech, does not mention everyone nor
+        -- the user, and uses Discord native replies.
+        -- Use ":info" in ghci to explore the type
+        let opts :: R.MessageDetailedOpts
+            opts = def { R.messageDetailedContent = "Here's a more complex message, but doesn't ping @everyone!. Here's the current gateway latency: " <> (T.pack . show) ([latency, mLatency])
+                       , R.messageDetailedTTS = True
+                       , R.messageDetailedAllowedMentions = Just $
+                          def { R.mentionEveryone = False
+                              , R.mentionRepliedUser = False
+                              }
+                       , R.messageDetailedReference = Just $
+                          def { referenceMessageId = Just $ messageId m }
+                       }
+        void $ restCall (R.CreateMessageDetailed (messageChannelId m) opts)
+      _ -> return ()
+
