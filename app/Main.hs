@@ -1,9 +1,9 @@
 module Main where
 
-import App (pingpongExample)
+import App (chirpExample)
 import Arguments (getArguments, MainArgs(..))
 
 main :: IO ()
 main = do (MainArgs tok guildid) <- getArguments
-          pingpongExample tok guildid
+          chirpExample tok guildid
 

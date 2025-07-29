@@ -1,6 +1,6 @@
 module App where
 
-import           Control.Monad (when, void)
+import           Control.Monad (forever, when, void)
 import Data.Default (def)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -11,10 +11,12 @@ import           Discord ( DiscordHandler
                          , runDiscord
                          , RunDiscordOpts(..)
                          , sendCommand)
+import           Discord.Internal.Rest (startRestThread, writeRestCall, RestCallInternalException(..))
 import           Discord.Types ( Activity(..)
                                , ActivityType(..)
+                               , Auth(..)
+                               , Channel(..)
                                , Event (..)
-                               , GatewayIntent(..)
                                , GatewaySendable(..)
                                , GuildId
                                , messageChannelId
@@ -26,9 +28,26 @@ import           Discord.Types ( Activity(..)
                                , UpdateStatusOpts(..))
 import qualified Discord.Requests as R
 import MyDiscord
-import UnliftIO (liftIO)
-import UnliftIO.Concurrent (threadDelay)
+import UnliftIO (Chan, liftIO, newChan, readChan)
+import UnliftIO.Concurrent (forkIO, killThread, threadDelay)
 
+
+chirpExample :: T.Text -> GuildId -> IO ()
+chirpExample tok testserverid = do
+  -- SETUP LOG
+  printQueue <- newChan :: IO (Chan T.Text)
+  printThreadId <- forkIO $ forever $ readChan printQueue >>= TIO.putStrLn
+
+  -- START REST LOOP THREAD
+  (restChan, restThreadId) <- startRestThread (Auth tok) printQueue
+
+  -- a rest call to get the channels in which we will post a message
+  Right cs <- writeRestCall restChan (R.ListScheduledEvents testserverid)
+  print cs
+
+  -- CLEANUP
+  killThread printThreadId
+  killThread restThreadId
 
 -- | Replies "pong" to every message that starts with "ping"
 pingpongExample :: T.Text -> GuildId -> IO ()
@@ -37,9 +56,9 @@ pingpongExample tok testserverid = do
   err <- runDiscord $ def { discordToken = tok
                           , discordOnStart = startHandler testserverid
                           , discordOnEnd = liftIO $ threadDelay (round @Double (0.4 * 10^(6::Int))) >>  putStrLn "Ended"
-                          , discordOnEvent = eventHandler
+                          --, discordOnEvent = eventHandler
                           , discordOnLog = \s -> TIO.putStrLn s >> TIO.putStrLn ""
-                          , discordGatewayIntent = def {gatewayIntentMembers = True, gatewayIntentPresences =True}
+                          --, discordGatewayIntent = def {gatewayIntentMembers = True, gatewayIntentPresences =True}
                           }
 
   -- only reached on an unrecoverable error
