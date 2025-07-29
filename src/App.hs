@@ -1,6 +1,5 @@
 module App where
 
-import Arguments
 import           Control.Monad (when, void)
 import Data.Default (def)
 import qualified Data.Text as T
@@ -32,10 +31,8 @@ import UnliftIO.Concurrent (threadDelay)
 
 
 -- | Replies "pong" to every message that starts with "ping"
-pingpongExample :: IO ()
-pingpongExample = do
-  MainArgs{botToken=tok, guildID=testserverid} <- getArguments
-
+pingpongExample :: T.Text -> GuildId -> IO ()
+pingpongExample tok testserverid = do
   -- open ghci and run  [[ :info RunDiscordOpts ]] to see available fields
   err <- runDiscord $ def { discordToken = tok
                           , discordOnStart = startHandler testserverid
