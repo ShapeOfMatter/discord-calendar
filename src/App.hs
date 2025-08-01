@@ -1,5 +1,6 @@
 module App where
 
+import Calendar
 import           Control.Monad (forever, when, void)
 import Data.Default (def)
 import qualified Data.Text as T
@@ -43,7 +44,7 @@ chirpExample tok testserverid = do
 
   -- a rest call to get the channels in which we will post a message
   Right cs <- writeRestCall restChan (R.ListScheduledEvents testserverid)
-  print cs
+  print $ asICalEvent <$> cs
 
   -- CLEANUP
   killThread printThreadId
