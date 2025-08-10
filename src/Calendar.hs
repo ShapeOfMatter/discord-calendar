@@ -17,10 +17,8 @@ import qualified Text.ICalendar as IC
 
 type ICalendar = IC.VCalendar
 
-asICalendar :: DC.ScheduledEvent -> ICalendar
-asICalendar se = def{ IC.vcEvents = M.singleton key value }
-  where key = (makeUID se, Nothing)
-        value = asICalEvent se
+asICalendar :: [DC.ScheduledEvent] -> ICalendar
+asICalendar ses = def{ IC.vcEvents = M.fromList [((makeUID se, Nothing), asICalEvent se) | se <- ses] }
 
 asICalEvent :: DC.ScheduledEvent -> IC.VEvent
 asICalEvent se = IC.VEvent {
@@ -79,6 +77,9 @@ makeUID se = (TL.pack . dcShowId . dcId) se <> "@discord"
 
 dcShowId :: DP.ScheduledEventId -> String
 dcShowId = show @Word64 . DP.unSnowflake . DP.unId
+
+dcIdSText :: DC.ScheduledEvent -> TS.Text
+dcIdSText = TS.pack . dcShowId . dcId
 
 pretty :: ICalendar -> TL.Text
 pretty = TL.pack . show
@@ -168,7 +169,7 @@ asICPrivacyClass DC.ScheduledEventPrivacyLevelGuildOnly = IC.Class IC.Public def
 eventImageURI :: DP.ScheduledEventId -> DC.ScheduledEventImageHash -> URI
 eventImageURI event hash = URI{
     uriScheme = "https:",
-    uriAuthority = Just $ URIAuth{uriUserInfo="", uriRegName="//cdn.discordapp.com", uriPort=""},
+    uriAuthority = Just $ URIAuth{uriUserInfo="", uriRegName="cdn.discordapp.com", uriPort=""},
     uriPath = "/guild-events/" <> dcShowId event <> "/" <> TS.unpack hash <> ".png",
     uriQuery = "",  -- ?size=desired_size to the URL. Image size can be any power of two between 16 and 4096.
     uriFragment = ""

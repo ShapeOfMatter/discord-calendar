@@ -1,0 +1,6 @@
+source-repository-package
+  type: git
+  location: https://github.com/ShapeOfMatter/discord-haskell.git
+
+packages: ./discord-calendar.cabal
+

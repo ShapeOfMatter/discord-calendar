@@ -69,15 +69,18 @@ executable discord-calendar
                    ,Arguments
                    ,Calendar
                    ,MyDiscord
+                   ,Server
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.20.0.0
+                     ,bytestring ^>=0.12.1.0
                      ,containers >=0.5 && <1
                      ,data-default >=0.7 && <0.9
                      ,discord-haskell ^>=1.18.0
+                     ,http-types >=0.7
                      ,iCalendar ^>=0.4.1.0
                      ,mime >=0.4.0 && <0.5
                      ,network-uri >=2.6.4 && <2.7
@@ -85,6 +88,8 @@ executable discord-calendar
                      ,text >=1.2 && <3
                      ,time >=1.12.2 && <1.13
                      ,unliftio >=0.2 && <0.3
+                     ,wai >=3.2.4 && <3.3
+                     ,warp ^>= 3.4.8
 
 
     -- Directories containing source files.
@@ -96,5 +101,5 @@ executable discord-calendar
     default-extensions: ApplicativeDo
                        ,BlockArguments
                        ,FunctionalDependencies
-		       ,OverloadedStrings
+                       ,OverloadedStrings
 

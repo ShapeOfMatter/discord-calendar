@@ -1,6 +1,5 @@
 module App where
 
-import Calendar
 import           Control.Monad (forever, when, void)
 import Data.Default (def)
 import qualified Data.Text as T
@@ -12,11 +11,11 @@ import           Discord ( DiscordHandler
                          , runDiscord
                          , RunDiscordOpts(..)
                          , sendCommand)
-import           Discord.Internal.Rest (startRestThread, writeRestCall, RestCallInternalException(..))
+import           Discord.Internal.Rest (startRestThread, writeRestCall)
+import           Discord.Internal.Types.ScheduledEvents (ScheduledEvent)
 import           Discord.Types ( Activity(..)
                                , ActivityType(..)
                                , Auth(..)
-                               , Channel(..)
                                , Event (..)
                                , GatewaySendable(..)
                                , GuildId
@@ -33,8 +32,8 @@ import UnliftIO (Chan, liftIO, newChan, readChan)
 import UnliftIO.Concurrent (forkIO, killThread, threadDelay)
 
 
-chirpExample :: T.Text -> GuildId -> IO ()
-chirpExample tok testserverid = do
+fetchEvents :: T.Text -> GuildId -> IO [ScheduledEvent]
+fetchEvents tok testserverid = do
   -- SETUP LOG
   printQueue <- newChan :: IO (Chan T.Text)
   printThreadId <- forkIO $ forever $ readChan printQueue >>= TIO.putStrLn
@@ -43,12 +42,14 @@ chirpExample tok testserverid = do
   (restChan, restThreadId) <- startRestThread (Auth tok) printQueue
 
   -- a rest call to get the channels in which we will post a message
-  Right cs <- writeRestCall restChan (R.ListScheduledEvents testserverid)
-  print $ asICalEvent <$> cs
+  ecs <- writeRestCall restChan (R.ListScheduledEvents testserverid)
+  Right cs <- either (\l -> print l >> (pure $ Left l)) (pure . Right) ecs
 
   -- CLEANUP
   killThread printThreadId
   killThread restThreadId
+
+  pure cs
 
 -- | Replies "pong" to every message that starts with "ping"
 pingpongExample :: T.Text -> GuildId -> IO ()
