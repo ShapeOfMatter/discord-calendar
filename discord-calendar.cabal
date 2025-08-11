@@ -65,8 +65,7 @@ executable discord-calendar
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules:  App
-                   ,Arguments
+    other-modules:  Arguments
                    ,Calendar
                    ,MyDiscord
                    ,Server

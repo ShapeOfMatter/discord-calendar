@@ -1,36 +1,32 @@
 module MyDiscord where
 
+import           Control.Monad (forever)
 import qualified Data.Text as T
-import           Discord ( DiscordHandler
-                         , restCall)
-import           Discord.Types ( Channel(..)
-                               , ChannelId
-                               , GuildId
-                               , Message
-                               , messageAuthor
-                               , messageContent
-                               , userIsBot)
+import qualified Data.Text.IO as TIO
+import           Discord.Internal.Rest (startRestThread, writeRestCall)
+import           Discord.Internal.Types.ScheduledEvents (ScheduledEvent)
+import           Discord.Types ( Auth(..)
+                               , GuildId)
 import qualified Discord.Requests as R
-import UnliftIO (throwString)
+import UnliftIO (Chan, newChan, readChan)
+import UnliftIO.Concurrent (forkIO, killThread)
 
 
-fromBot :: Message -> Bool
-fromBot = userIsBot . messageAuthor
+fetchEvents :: T.Text -> GuildId -> IO [ScheduledEvent]
+fetchEvents tok testserverid = do
+  -- SETUP LOG
+  printQueue <- newChan :: IO (Chan T.Text)
+  printThreadId <- forkIO $ forever $ readChan printQueue >>= TIO.putStrLn
 
-isPing :: Message -> Bool
-isPing = ("ping" `T.isPrefixOf`) . T.toLower . messageContent
+  -- START REST LOOP THREAD
+  (restChan, restThreadId) <- startRestThread (Auth tok) printQueue
 
--- | Given the test server and an action operating on a channel id, get the
--- first text channel of that server and use the action on that channel.
-actionWithChannelId :: GuildId -> (ChannelId -> DiscordHandler a) -> DiscordHandler a
-actionWithChannelId testserverid f = do
-  response <- restCall $ R.GetGuildChannels testserverid
-  chans <- case response of
-    Left err -> throwString $ show err
-    Right c -> pure c
-  ch : _ <- pure $ filter isTextChannel chans
-  f . channelId $ ch
-  where
-    isTextChannel :: Channel -> Bool
-    isTextChannel ChannelText {} = True
-    isTextChannel _ = False
+  -- a rest call to get the channels in which we will post a message
+  ecs <- writeRestCall restChan (R.ListScheduledEvents testserverid)
+  Right cs <- either (\l -> print l >> (pure $ Left l)) (pure . Right) ecs
+
+  -- CLEANUP
+  killThread printThreadId
+  killThread restThreadId
+
+  pure cs

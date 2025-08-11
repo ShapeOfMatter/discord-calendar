@@ -4,6 +4,6 @@ import Arguments (getArguments, MainArgs(..))
 import Server (serve)
 
 main :: IO ()
-main = do (MainArgs tok guildid) <- getArguments
-          serve tok guildid
+main = do (MainArgs tok guildid port) <- getArguments
+          serve port tok guildid
 
