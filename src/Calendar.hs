@@ -18,12 +18,12 @@ import qualified Text.ICalendar as IC
 type ICalendar = IC.VCalendar
 
 asICalendar :: [DC.ScheduledEvent] -> ICalendar
-asICalendar ses = def{ IC.vcEvents = M.fromList [((makeUID se, Nothing), asICalEvent se) | se <- ses] }
+asICalendar ses = def{ IC.vcEvents = M.fromList [((TL.pack $ makeUID se, Nothing), asICalEvent se) | se <- ses] }
 
 asICalEvent :: DC.ScheduledEvent -> IC.VEvent
 asICalEvent se = IC.VEvent {
     IC.veDTStamp = IC.DTStamp (UTCTime (toEnum 0) (toEnum 0)) def,  -- Wish i could omit this.
-    IC.veUID = IC.UID (makeUID se) def,
+    IC.veUID = IC.UID (TL.pack $ makeUID se) def,
     IC.veClass = asICPrivacyClass . dcPrivacyLevel $ se,
     IC.veDTStart = Just . (`IC.DTStartDateTime` def) . IC.UTCDateTime . dcStartTime $ se,
     IC.veCreated = Nothing,  -- We don't seem to have it and probably don't care.
@@ -72,14 +72,14 @@ X  dcStatus :: DC.ScheduledEvent -> DC.ScheduledEventStatus
 X  dcImage :: DC.ScheduledEvent -> Maybe DC.ScheduledEventImageHash
  - -}
 
-makeUID :: DC.ScheduledEvent -> TL.Text
-makeUID se = (TL.pack . dcShowId . dcId) se <> "@discord"
+makeUID :: DC.ScheduledEvent -> String
+makeUID = ((<> "@discord") . dcIdString)
 
 dcShowId :: DP.ScheduledEventId -> String
 dcShowId = show @Word64 . DP.unSnowflake . DP.unId
 
-dcIdSText :: DC.ScheduledEvent -> TS.Text
-dcIdSText = TS.pack . dcShowId . dcId
+dcIdString :: DC.ScheduledEvent -> String
+dcIdString = dcShowId . dcId
 
 pretty :: ICalendar -> TL.Text
 pretty = TL.pack . show

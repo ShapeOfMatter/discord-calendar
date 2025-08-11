@@ -1,18 +1,21 @@
 module Server where
 
-import Calendar (asICalendar, makeUID)
+import Calendar (asICalendar)
 import Data.ByteString (ByteString)
-import Data.ByteString.Lazy (LazyByteString)
+import Data.ByteString.Lazy (fromStrict, LazyByteString)
 import Data.ByteString.Builder (stringUtf8, toLazyByteString)
 import Data.Default (def)
+import Data.Functor ((<&>))
 import Data.List (elemIndices, unsnoc)
 import Data.Maybe (maybeToList)
 import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
 import           Discord.Types (GuildId)
+import           Discord.Internal.Rest (RestCallInternalException(RestCallInternalErrorCode
+                                                                 ,RestCallInternalNoParse
+                                                                 ,RestCallInternalHttpException))
 import           Discord.Internal.Types.ScheduledEvents (ScheduledEvent)
-import MyDiscord (fetchEvents)
-import Network.HTTP.Types (Status, status200, badRequest400, notFound404)
+import MyDiscord (couldHaveID, fetchEvents)
+import Network.HTTP.Types (badRequest400, internalServerError500, mkStatus, notFound404, Status, status200)
 import Network.Wai (Application, pathInfo, responseLBS, Response)
 import Network.Wai.Handler.Warp (Port, run)
 import Text.ICalendar.Printer (printICalendar)
@@ -56,14 +59,14 @@ errorMessages (UnknownEvent guildid eventid) = ["Couldn't find the requested eve
                                                ,"Event ID: " <> show eventid]
 errorMessages (UnparseableFields path message) = ["Request fields are not parseable.", "Path: " <> show path] <> maybeToList message
 
-status :: BadRequest -> Status
-status (UnknownPath _ _) = notFound404
-status (UnknownFileType _ _) = badRequest400
-status (UnknownEvent _ _) = notFound404
-status (UnparseableFields _ _) = badRequest400
+asStatus :: BadRequest -> Status
+asStatus (UnknownPath _ _) = notFound404
+asStatus (UnknownFileType _ _) = badRequest400
+asStatus (UnknownEvent _ _) = notFound404
+asStatus (UnparseableFields _ _) = badRequest400
 
 textError :: BadRequest -> Response
-textError r = responseLBS (status r) [("Content-Type", contentType NullFile)] (utf8 . unlines $ errorMessages r)
+textError r = responseLBS (asStatus r) [("Content-Type", contentType NullFile)] (utf8 . unlines $ errorMessages r)
 
 splitExtension :: Path -> (Path, String)  -- Should be able to do this all in T.Text, but i'm lazy.
 splitExtension path = case unsnoc path of
@@ -73,7 +76,7 @@ splitExtension path = case unsnoc path of
                     Just (_, lastIndex) -> case splitAt lastIndex p of
                                              ("", _) -> (ps <> [pText], "") -- starts with dot; don't interpret as extension
                                              (name, '.' : extension) -> (ps <> [T.pack name], extension)  -- found a real extension
-                                             (_, _) -> undefined -- can't happen
+                                             (_, _) -> (ps <> [pText], "") -- can't happen
 
 parseGuildID :: T.Text -> Maybe GuildId
 parseGuildID = readMaybe . T.unpack
@@ -100,17 +103,26 @@ server tok rawrequest respond = do
  
 handle :: T.Text -> GoodRequest -> IO Response
 handle tok (GuildRequest ft guildid) = do
-  events <- fetchEvents tok guildid
-  putStrLn $ "Found " <> show (length events) <> " events for guild: " <> show guildid
-  pure $ successResponse events ft
-handle tok (EventRequest ft guildid eventid) = do
-  allEvents <- fetchEvents tok guildid
-  case filter ((== eventid) . TL.toStrict . makeUID) allEvents of
-    [] -> pure $ textError $ UnknownEvent guildid eventid
-    [event] -> do putStrLn $ "Found event for (guild, event): " <> show (guildid, eventid)
-                  pure $ successResponse [event] ft
-    events@(_:_) -> do putStrLn $ "FOUND " <> show (length events) <> " EVENTS FOR (GUILD, EVENT): " <> show (guildid, eventid)
+  fetchEvents tok guildid >>= \case
+    Left err -> pure $ passDiscordError err
+    Right events -> do putStrLn $ "Found " <> show (length events) <> " events for guild: " <> show guildid
                        pure $ successResponse events ft
+handle tok (EventRequest ft guildid eventid) = do
+  fetchEvents tok guildid <&> (filter (`couldHaveID` eventid) <$>) >>= \case
+    Left err -> pure $ passDiscordError err
+    Right [] -> pure $ textError $ UnknownEvent guildid eventid
+    Right [event] -> do putStrLn $ "Found event for (guild, event): " <> show (guildid, eventid)
+                        pure $ successResponse [event] ft
+    Right events@(_:_) -> do putStrLn $ "FOUND " <> show (length events) <> " EVENTS FOR (GUILD, EVENT): " <> show (guildid, eventid)
+                             pure $ successResponse events ft
+
+passDiscordError :: RestCallInternalException -> Response
+passDiscordError (RestCallInternalErrorCode status statusMessage body) =
+  responseLBS (mkStatus status statusMessage) [] ("Discord error: \n" <> fromStrict body)
+passDiscordError (RestCallInternalNoParse string byteString) =
+  responseLBS internalServerError500 [] ("Problem parsing response from Discord: " <> utf8 (string <> "\n") <> byteString)
+passDiscordError (RestCallInternalHttpException httpException) =
+  responseLBS internalServerError500 [] ("Problem of unknown origin: \n" <> utf8 (show httpException))
 
 successResponse :: [ScheduledEvent] -> FileType -> Response
 successResponse events ft = responseLBS status200 [("Content-Type", contentType ft)] case ft of
