@@ -1,6 +1,7 @@
 module Server where
 
 import Calendar (asICalendar)
+import Data.Aeson (encode)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (fromStrict, LazyByteString)
 import Data.ByteString.Builder (stringUtf8, toLazyByteString)
@@ -28,16 +29,19 @@ type EventId = T.Text
 type Path = [T.Text]
 
 data FileType = ICSFile
-               | NullFile
-               deriving (Bounded, Enum, Eq, Ord, Read, Show) -- I assume Ord uses the order above, which could matter if I mess up the extensions list.
+              | JSONFile
+              | NullFile
+              deriving (Bounded, Enum, Eq, Ord, Read, Show) -- I assume Ord uses the order above, which could matter if I mess up the extensions list.
 
 contentType :: FileType -> ByteString
 contentType ICSFile = "text/calendar; charset=utf-8"
+contentType JSONFile = "application/json"  -- I guess it just guesses the charset?
 contentType NullFile = "text/plain; charset=utf-8"
 
 extensionType :: String -> Either String FileType
 extensionType "" = Right NullFile
 extensionType "ics" = Right ICSFile
+extensionType "json" = Right JSONFile
 extensionType unknown = Left unknown
 
 data GoodRequest = GuildRequest FileType GuildId
@@ -108,7 +112,7 @@ handle tok (GuildRequest ft guildid) = do
     Right events -> do putStrLn $ "Found " <> show (length events) <> " events for guild: " <> show guildid
                        pure $ successResponse events ft
 handle tok (EventRequest ft guildid eventid) = do
-  fetchEvents tok guildid <&> (filter (`couldHaveID` eventid) <$>) >>= \case
+  fetchEvents tok guildid <&> (filter (`couldHaveID` eventid) <$>) >>= \case  -- This should totally have a different request structure :(
     Left err -> pure $ passDiscordError err
     Right [] -> pure $ textError $ UnknownEvent guildid eventid
     Right [event] -> do putStrLn $ "Found event for (guild, event): " <> show (guildid, eventid)
@@ -127,6 +131,7 @@ passDiscordError (RestCallInternalHttpException httpException) =
 successResponse :: [ScheduledEvent] -> FileType -> Response
 successResponse events ft = responseLBS status200 [("Content-Type", contentType ft)] case ft of
   ICSFile -> (printICalendar def $ asICalendar events)
+  JSONFile -> encode events
   NullFile -> utf8 $ show events
 
 

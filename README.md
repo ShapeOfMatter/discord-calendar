@@ -6,4 +6,4 @@ Intended behavior:
 - [x] get guild from path
 - [x] forward discord errors
 - [x] handle both kinds of event ids
-- [ ] serve json
+- [x] serve json

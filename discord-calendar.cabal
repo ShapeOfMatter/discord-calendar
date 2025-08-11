@@ -74,7 +74,8 @@ executable discord-calendar
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.20.0.0
+    build-depends:    aeson ^>=2.2.3.0
+                     ,base ^>=4.20.0.0
                      ,bytestring ^>=0.12.1.0
                      ,containers >=0.5 && <1
                      ,data-default >=0.7 && <0.9
