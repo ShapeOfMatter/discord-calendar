@@ -45,7 +45,7 @@ extensionType unknown = Left unknown
 
 headers :: FileType -> ResponseHeaders
 headers = (:defaults) . ("Content-Type",) . contentType
-  where defaults = []
+  where defaults = [("Access-Control-Allow-Origin","*")]
 
 data GoodRequest = GuildRequest FileType GuildId
                  | EventRequest FileType GuildId EventId
