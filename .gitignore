@@ -3,3 +3,4 @@ cabal.project.local*
 secrets
 *.csr
 *.pem
+*.key
