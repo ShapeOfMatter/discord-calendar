@@ -146,5 +146,5 @@ successResponse events ft = responseLBS status200 (headers ft) case ft of
 apiCors :: CorsResourcePolicy
 apiCors = simpleCorsResourcePolicy{
       corsMethods = simpleMethods <> ["OPTIONS"],
-      corsRequestHeaders = simpleHeaders <> ["Content-Type"]
+      corsRequestHeaders = simpleHeaders
       }
