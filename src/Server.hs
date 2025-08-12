@@ -16,7 +16,7 @@ import           Discord.Internal.Rest (RestCallInternalException(RestCallIntern
                                                                  ,RestCallInternalHttpException))
 import           Discord.Internal.Types.ScheduledEvents (ScheduledEvent)
 import MyDiscord (couldHaveID, fetchEvents)
-import Network.HTTP.Types (badRequest400, internalServerError500, mkStatus, notFound404, Status, status200)
+import Network.HTTP.Types (badRequest400, internalServerError500, mkStatus, notFound404, ResponseHeaders, Status, status200)
 import Network.Wai (Application, pathInfo, responseLBS, Response)
 import Text.ICalendar.Printer (printICalendar)
 import Text.Read (readMaybe)
@@ -42,6 +42,9 @@ extensionType "" = Right NullFile
 extensionType "ics" = Right ICSFile
 extensionType "json" = Right JSONFile
 extensionType unknown = Left unknown
+
+headers :: FileType -> ResponseHeaders
+headers ft = [("Content-Type", contentType ft)]
 
 data GoodRequest = GuildRequest FileType GuildId
                  | EventRequest FileType GuildId EventId
@@ -69,7 +72,7 @@ asStatus (UnknownEvent _ _) = notFound404
 asStatus (UnparseableFields _ _) = badRequest400
 
 textError :: BadRequest -> Response
-textError r = responseLBS (asStatus r) [("Content-Type", contentType NullFile)] (utf8 . unlines $ errorMessages r)
+textError r = responseLBS (asStatus r) (headers NullFile) (utf8 . unlines $ errorMessages r)
 
 splitExtension :: Path -> (Path, String)  -- Should be able to do this all in T.Text, but i'm lazy.
 splitExtension path = case unsnoc path of
@@ -128,7 +131,7 @@ passDiscordError (RestCallInternalHttpException httpException) =
   responseLBS internalServerError500 [] ("Problem of unknown origin: \n" <> utf8 (show httpException))
 
 successResponse :: [ScheduledEvent] -> FileType -> Response
-successResponse events ft = responseLBS status200 [("Content-Type", contentType ft)] case ft of
+successResponse events ft = responseLBS status200 (headers ft) case ft of
   ICSFile -> (printICalendar def $ asICalendar events)
   JSONFile -> encode events
   NullFile -> utf8 $ show events
