@@ -1,4 +1,5 @@
 dist-newstyle
 cabal.project.local*
 secrets
-
+*.csr
+*.pem

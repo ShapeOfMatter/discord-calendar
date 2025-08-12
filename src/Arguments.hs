@@ -1,6 +1,8 @@
 module Arguments where
 
 import Control.Monad (join)
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import Network.Wai.Handler.Warp (Port)
 import Options.Applicative ( (<**>)
@@ -23,14 +25,20 @@ import Text.Read (readMaybe)
 
 
 data MainArgs = MainArgs{ botToken :: T.Text
+                        , tlsCert :: ByteString
+                        , tlsKey :: ByteString
                         , portToServe :: Port
                         } deriving (Show, Read)
 
 argParser :: Parser (IO MainArgs)
 argParser = do
-              token <- strOption (short 't' <> metavar "TOKEN" <> help "A token for a bot? DISCOURAGED! (Use a secrets file.)")
-              port <- option @Port auto (short 'p' <> metavar "PORT" <> help "The port on which to serve HTTP(S) requests.")
-              pure $ pure $ MainArgs token port
+              botToken <- strOption (short 't' <> metavar "TOKEN" <> help "A token for a bot? DISCOURAGED! (Use a secrets file.)")
+              portToServe <- option @Port auto (short 'p' <> metavar "PORT" <> help "The port on which to serve HTTP(S) requests.")
+              certFile <- strOption (short 'c' <> metavar "FILE" <> help "The TLS certificate file for https.")
+              keyFile <- strOption (short 'k' <> metavar "FILE" <> help "The key matching the certificate file.")
+              pure do tlsCert <- BS.readFile certFile
+                      tlsKey <- BS.readFile keyFile
+                      pure $ MainArgs{botToken, tlsCert, tlsKey, portToServe}
 
 fileParser :: Parser (IO MainArgs)
 fileParser = do

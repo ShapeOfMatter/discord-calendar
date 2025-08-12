@@ -18,7 +18,6 @@ import           Discord.Internal.Types.ScheduledEvents (ScheduledEvent)
 import MyDiscord (couldHaveID, fetchEvents)
 import Network.HTTP.Types (badRequest400, internalServerError500, mkStatus, notFound404, Status, status200)
 import Network.Wai (Application, pathInfo, responseLBS, Response)
-import Network.Wai.Handler.Warp (Port, run)
 import Text.ICalendar.Printer (printICalendar)
 import Text.Read (readMaybe)
 
@@ -133,11 +132,5 @@ successResponse events ft = responseLBS status200 [("Content-Type", contentType 
   ICSFile -> (printICalendar def $ asICalendar events)
   JSONFile -> encode events
   NullFile -> utf8 $ show events
-
-
-serve ::  Port -> T.Text -> IO ()
-serve port tok = do
-    putStrLn $ "http://localhost:" <> show port <> "/"
-    run port $ server tok
 
 
