@@ -18,7 +18,11 @@ import           Discord.Internal.Types.ScheduledEvents (ScheduledEvent)
 import MyDiscord (couldHaveID, fetchEvents)
 import Network.HTTP.Types (badRequest400, internalServerError500, mkStatus, notFound404, ResponseHeaders, Status, status200)
 import Network.Wai (Application, pathInfo, responseLBS, Response)
-import Network.Wai.Middleware.Cors (simpleCors)
+import Network.Wai.Middleware.Cors (cors
+                                   ,simpleCorsResourcePolicy
+                                   ,simpleHeaders
+                                   ,simpleMethods
+                                   ,CorsResourcePolicy(corsMethods, corsRequestHeaders))
 import Text.ICalendar.Printer (printICalendar)
 import Text.Read (readMaybe)
 
@@ -101,7 +105,7 @@ parseRequest rawpath =
        _ -> Left $ UnparseableFields path (Just "Couldn't parse the GuildId.")
 
 server :: T.Text -> Application
-server tok = simpleCors implementation
+server tok = cors (const $ Just apiCors) implementation
   where implementation rawrequest respond = do
           let request = parseRequest $ pathInfo rawrequest
           response <- case request of
@@ -138,4 +142,9 @@ successResponse events ft = responseLBS status200 (headers ft) case ft of
   JSONFile -> encode events
   NullFile -> utf8 $ show events
 
-
+-- https://github.com/larskuhtz/wai-cors/issues/29
+apiCors :: CorsResourcePolicy
+apiCors = simpleCorsResourcePolicy{
+      corsMethods = simpleMethods <> ["OPTIONS"],
+      corsRequestHeaders = simpleHeaders
+      }
