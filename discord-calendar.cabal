@@ -89,7 +89,6 @@ executable discord-calendar
                      ,time >=1.12.2 && <1.13
                      ,unliftio >=0.2 && <0.3
                      ,wai >=3.2.4 && <3.3
-                     ,wai-cors ==0.2.7
                      ,warp ^>= 3.4.8
                      ,warp-tls ^>= 3.4.13
 
