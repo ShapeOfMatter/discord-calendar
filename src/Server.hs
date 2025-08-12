@@ -44,7 +44,8 @@ extensionType "json" = Right JSONFile
 extensionType unknown = Left unknown
 
 headers :: FileType -> ResponseHeaders
-headers ft = [("Content-Type", contentType ft)]
+headers = (:defaults) . ("Content-Type",) . contentType
+  where defaults = []
 
 data GoodRequest = GuildRequest FileType GuildId
                  | EventRequest FileType GuildId EventId
